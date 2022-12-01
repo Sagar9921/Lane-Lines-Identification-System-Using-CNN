@@ -1,0 +1,73 @@
+from google.colab import files
+
+uploaded = files.upload()
+
+import os
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+
+model_new = tf.keras.models.load_model("model.h5")
+
+
+model_new.summary()
+
+
+!pip install scipy==1.1.0
+!pip install imageio-ffmpeg
+!pip install h5py
+
+!pip install scipy==1.1.0
+!pip install imageio-ffmpeg
+!pip3 install imageio==2.4.1
+import numpy as np
+import cv2
+#import tensorflow as tf
+# from scipy.misc import imresize
+from scipy.misc import imresize
+from moviepy.editor import VideoFileClip
+from scipy import stats
+from tensorflow.keras.models import load_model as lm
+#stats.chisqprob = lambda chisq, df: stats.chi2.sf(chisq, df)
+model = lm('model.h5')
+
+
+class Lanes():
+  def __init__(self):
+    self.recent_fit = []
+    self.avg_fit = []
+
+def road_lanes(image):
+  small_img = imresize(image,(80, 160, 3))
+  small_img = np.array(small_img)
+  small_img = small_img[None,:,:,:]
+  
+  prediction = model.predict(small_img)[0] * 255
+  
+  lanes.recent_fit.append(prediction)
+  
+  if len(lanes.recent_fit) > 5:
+    lanes.recent_fit = lanes.recent_fit[1:]
+
+    # lane.avg_fit = np.mean(np.array([i ]))
+        
+  lanes.avg_fit = np.mean(np.array([i for i in lanes.recent_fit]), axis =0)
+    
+  blanks = np.zeros_like(lanes.avg_fit).astype(np.uint8)
+  lane_drawn = np.dstack((blanks, lanes.avg_fit, blanks))
+    
+  lane_image = imresize(lane_drawn, (720, 1280, 3))
+  result = cv2.addWeighted(image, 1, lane_image, 1, 0)
+    
+  return result
+
+
+!pip install imageio-ffmpeg
+from moviepy.editor import VideoFileClip
+vid_input = VideoFileClip("lanes_clip.mp4")
+vid_output = 'lanes_output_clip.mp4'
+
+lanes = Lanes()
+
+vid_clip = vid_input.fl_image(road_lanes)
+vid_clip.write_videofile(vid_output)
