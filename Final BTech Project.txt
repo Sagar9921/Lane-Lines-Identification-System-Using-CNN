@@ -1,36 +1,16 @@
-from google.colab import files
-
-uploaded = files.upload()
-
-import os
-import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-
-model_new = tf.keras.models.load_model("model.h5")
-
-
-model_new.summary()
-
-
-!pip install scipy==1.1.0
+!pip install scipy
 !pip install imageio-ffmpeg
 !pip install h5py
 
-!pip install scipy==1.1.0
-!pip install imageio-ffmpeg
-!pip3 install imageio==2.4.1
 import numpy as np
 import cv2
 #import tensorflow as tf
 # from scipy.misc import imresize
-from scipy.misc import imresize
 from moviepy.editor import VideoFileClip
 from scipy import stats
 from tensorflow.keras.models import load_model as lm
 #stats.chisqprob = lambda chisq, df: stats.chi2.sf(chisq, df)
 model = lm('model.h5')
-
 
 class Lanes():
   def __init__(self):
@@ -38,7 +18,7 @@ class Lanes():
     self.avg_fit = []
 
 def road_lanes(image):
-  small_img = imresize(image,(80, 160, 3))
+  small_img = cv2.resize(image,(160, 80))
   small_img = np.array(small_img)
   small_img = small_img[None,:,:,:]
   
@@ -56,18 +36,110 @@ def road_lanes(image):
   blanks = np.zeros_like(lanes.avg_fit).astype(np.uint8)
   lane_drawn = np.dstack((blanks, lanes.avg_fit, blanks))
     
-  lane_image = imresize(lane_drawn, (720, 1280, 3))
-  result = cv2.addWeighted(image, 1, lane_image, 1, 0)
+  # lane_image = cv2.resize(lane_drawn, (720, 1280))
+  lane_image = cv2.resize(lane_drawn, (image.shape[1], image.shape[0]))
+  # result = cv2.addWeighted(image, 0.8, lane_image, 1, 0)
+  result = cv2.addWeighted(image, 0.8, lane_image, 1, 0, dtype=cv2.CV_8U)
     
   return result
 
-
 !pip install imageio-ffmpeg
+
+
+
 from moviepy.editor import VideoFileClip
 vid_input = VideoFileClip("lanes_clip.mp4")
 vid_output = 'lanes_output_clip.mp4'
-
 lanes = Lanes()
-
 vid_clip = vid_input.fl_image(road_lanes)
-vid_clip.write_videofile(vid_output)
+#vid_clip.write_videofile(vid_output)
+vid_clip.ipython_display()
+
+
+-------------------------------------------------------------------------------------------------------
+
+
+# !pip install scipy
+# !pip install imageio-ffmpeg
+# !pip install h5py
+
+# import numpy as np
+# import cv2
+# from moviepy.editor import VideoFileClip
+# from scipy import stats
+# from tensorflow.keras.models import load_model as lm
+
+# model = lm('model.h5')
+
+class Lanes():
+    def __init__(self):
+        self.recent_fit = []
+        self.avg_fit = []
+        self.car_counter = 0
+        self.alert = False
+
+def road_lanes(image, lanes):
+    small_img = cv2.resize(image,(160, 80))
+    small_img = np.array(small_img)
+    small_img = small_img[None,:,:,:]
+  
+    prediction = model.predict(small_img)[0] * 255
+  
+    lanes.recent_fit.append(prediction)
+  
+    if len(lanes.recent_fit) > 5:
+        lanes.recent_fit = lanes.recent_fit[1:]
+
+    lanes.avg_fit = np.mean(np.array([i for i in lanes.recent_fit]), axis = 0)
+    
+    blanks = np.zeros_like(lanes.avg_fit).astype(np.uint8)
+    lane_drawn = np.dstack((blanks, lanes.avg_fit, blanks))
+    
+    # Detect cars passing outside of the road
+    lanes.car_counter, lanes.alert = car_detector(image, lanes.car_counter, lanes.alert)
+    
+    # if lanes.alert:
+        # Draw a red rectangle around the image to indicate an alert
+    # alert_image = cv2.rectangle(image, (0, 0), (image.shape[1], image.shape[0]), (0, 0, 255), thickness=30)
+    # result = cv2.addWeighted(alert_image, 0.8, lane_drawn, 1, 0, dtype=cv2.CV_8U)
+
+      # lane_image = cv2.resize(lane_drawn, (720, 1280))
+    lane_image = cv2.resize(lane_drawn, (image.shape[1], image.shape[0]))
+  # result = cv2.addWeighted(image, 0.8, lane_image, 1, 0)
+    result = cv2.addWeighted(image, 0.8, lane_image, 1, 0, dtype=cv2.CV_8U)
+
+    return result
+    # else:
+    #     lane_drawn_resized = cv2.resize(lane_drawn, (image.shape[1], image.shape[0]))
+    #     result = cv2.addWeighted(image, 0.8, lane_drawn_resized, 1, 0, dtype=cv2.CV_8U)
+    
+    # return result
+
+def car_detector(image, car_counter, alert):
+    car_cascade = cv2.CascadeClassifier('cars.xml')
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    cars = car_cascade.detectMultiScale(gray, 1.1, 1)
+
+    for (x,y,w,h) in cars:
+        # If car is detected outside of the left or right lane, increase the car counter
+        if x < 250 or x > 400:
+            car_counter += 1
+        else:
+            car_counter = 0
+            alert = False
+        
+        # If the car counter reaches a certain value, set the alert flag to True
+        if car_counter > 20:
+            alert = True
+            
+        # Draw a rectangle around the car
+        cv2.rectangle(image,(x,y),(x+w,y+h),(0,0,255),2)
+
+    return car_counter, alert
+
+vid_input = VideoFileClip("lanes_clip.mp4")
+vid_output = 'lanes_output_clip.mp4'
+lanes = Lanes()
+vid_clip = vid_input.fl_image(lambda x: road_lanes(x, lanes))
+#vid_clip.write_videofile(vid_output)
+vid_clip.ipython_display()
